@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+
+<launch>
+    <!-- Use groups if you want to launch several nodes for multiple devices.
+    Make sure to use different param files for each sensor. -->
+    
+    <node name="xsens_mti_node" pkg="xsens_mti_driver" type="xsens_mti_node" output="screen" ns="mti30">
+      <rosparam command="load" file="$(find xsens_mti_driver)/param/xsens_mti_30.yaml" />
+    </node>
+
+</launch>
