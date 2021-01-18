@@ -24,6 +24,7 @@
 #ifndef TIMEREFERENCEPUBLISHER_H
 #define TIMEREFERENCEPUBLISHER_H
 
+#include <time.h>
 #include "packetcallback.h"
 #include <sensor_msgs/TimeReference.h>
 
@@ -37,33 +38,62 @@ struct TimeReferencePublisher : public PacketCallback
         ros::param::get("~publisher_queue_size", pub_queue_size);
         pub = node.advertise<sensor_msgs::TimeReference>("/imu/time_ref", pub_queue_size);
     }
+    
+    time_t TimeFromYMD(int year, int month, int day)
+    {
+      struct tm tm;
+      memset(&tm, 0, sizeof(tm));
+      tm.tm_year = year;
+      tm.tm_mon = month;
+      tm.tm_mday = day;
+      return mktime(&tm);
+    }
 
     void operator()(const XsDataPacket &packet, ros::Time timestamp)
     {
-        if (packet.containsSampleTimeFine())
+        if (packet.containsUtcTime())
         {
-            const uint32_t SAMPLE_TIME_FINE_HZ = 10000UL;
-            const uint32_t ONE_GHZ = 1000000000UL;
-            uint32_t sec, nsec, t_fine;
             sensor_msgs::TimeReference msg;
+            XsTimeInfo time = packet.utcTime();
 
-            t_fine = packet.sampleTimeFine();
-            sec = t_fine / SAMPLE_TIME_FINE_HZ;
-            nsec = (t_fine % SAMPLE_TIME_FINE_HZ) * (ONE_GHZ / SAMPLE_TIME_FINE_HZ);
+            //double time_difference = difftime(TimeFromYMD(time.m_year, time.m_month, time.m_day), TimeFromYMD(1970, 1, 1));
+            double time_difference = difftime(TimeFromYMD(2021, 2, 18), TimeFromYMD(1970, 1, 1));
+            time_difference += time.m_hour*3600 + time.m_minute*60 + time.m_second + 86400; //leap 1day
 
-            if (packet.containsSampleTimeCoarse())
-            {
-                sec = packet.sampleTimeCoarse();
-            }
-
-            ros::Time sample_time(sec, nsec);
+            ros::Time sample_time(time_difference, time.m_nano);
 
             msg.header.stamp = timestamp;
-            // msg.header.frame_id = unused
             msg.time_ref = sample_time;
-            // msg.source = optional
 
             pub.publish(msg);
+        }
+        else
+        {
+            if (packet.containsSampleTimeFine())
+            {
+                const uint32_t SAMPLE_TIME_FINE_HZ = 10000UL;
+                const uint32_t ONE_GHZ = 1000000000UL;
+                uint32_t sec, nsec, t_fine;
+                sensor_msgs::TimeReference msg;
+
+                t_fine = packet.sampleTimeFine();
+                sec = t_fine / SAMPLE_TIME_FINE_HZ;
+                nsec = (t_fine % SAMPLE_TIME_FINE_HZ) * (ONE_GHZ / SAMPLE_TIME_FINE_HZ);
+
+                if (packet.containsSampleTimeCoarse())
+                {
+                    sec = packet.sampleTimeCoarse();
+                }
+
+                ros::Time sample_time(sec, nsec);
+
+                msg.header.stamp = timestamp;
+                // msg.header.frame_id = unused
+                msg.time_ref = sample_time;
+                // msg.source = optional
+
+                pub.publish(msg);
+            }
         }
     }
 };
